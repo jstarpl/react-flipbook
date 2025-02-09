@@ -1,6 +1,6 @@
 {
   "name": "@jstarpl/react-flipbook",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "type": "module",
   "main": "./dist/react-flipbook.js",
   "types": "./dist/main.d.ts",
