@@ -1,0 +1,35 @@
+{
+  "name": "@jstarpl/flipb_conv",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.mjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "bin": {
+    "flipb_conv": "./index.mjs"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "ora": "^8.2.0"
+  },
+  "prettier": {
+    "trailingComma": "es5",
+    "useTabs": true
+  },
+  "eslintConfig": {
+    "extends": "standard",
+    "rules": {
+      "no-mixed-spaces-and-tabs": "off"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

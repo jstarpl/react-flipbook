@@ -1,0 +1,28 @@
+{
+  "name": "@jstarpl/rollup-plugin-flipbook",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.mjs",
+  "types": "index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "description": "",
+  "prettier": {
+    "trailingComma": "es5",
+    "useTabs": true
+  },
+  "eslintConfig": {
+    "extends": "standard",
+    "rules": {
+      "no-mixed-spaces-and-tabs": "off"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
