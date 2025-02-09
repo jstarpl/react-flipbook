@@ -1,9 +1,12 @@
 {
   "name": "@jstarpl/react-flipbook",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
-  "main": "./dist/react-tabular-input.js",
+  "main": "./dist/react-flipbook.js",
   "types": "./dist/main.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc --p ./tsconfig.build.json && vite build",
