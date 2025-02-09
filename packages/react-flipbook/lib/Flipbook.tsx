@@ -135,7 +135,7 @@ export function Flipbook(
 		targetStep.current = controlledStep;
 
 		const transitionStart = performance.now();
-		const transitionStartFrame = frame.current;
+		let transitionStartFrame = frame.current;
 
 		const targetFrame =
 			controlledStep < 0
@@ -143,6 +143,11 @@ export function Flipbook(
 				: controlledStep > steps.length - 1
 					? source.totalFrames - 1
 					: steps[controlledStep];
+
+		if (targetFrame < transitionStartFrame) {
+			transitionStartFrame = 0;
+			setFrame(0)
+		}
 
 		function animateToTargetStep(ts: number) {
 			const diff = ts - transitionStart;
