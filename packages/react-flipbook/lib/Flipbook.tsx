@@ -33,6 +33,7 @@ interface IFrameControl {
 interface IStepControl {
 	step: number;
 	steps: number[];
+	onStepCompleted?: (e: {step: number}) => void
 }
 
 type IFrameControlledProps = IBase & IFrameControl;
@@ -51,6 +52,7 @@ export function Flipbook(
 	const controlledFrame = "frame" in props ? props.frame : undefined;
 	const controlledStep = "step" in props ? props.step : undefined;
 	const incomingSteps = "steps" in props ? props.steps : undefined;
+	const onStepCompleted = "onStepCompleted" in props ? props.onStepCompleted : undefined;
 
 	// steps musn't change after mount
 	const [steps] = useState(incomingSteps);
@@ -146,13 +148,13 @@ export function Flipbook(
 
 		if (targetFrame < transitionStartFrame) {
 			transitionStartFrame = 0;
-			setFrame(0)
+			setFrame(0);
 		}
 
 		function animateToTargetStep(ts: number) {
 			const diff = ts - transitionStart;
 			const newFrame = Math.min(
-				transitionStartFrame + Math.floor((diff / source.frameDurationMs)),
+				transitionStartFrame + Math.floor(diff / source.frameDurationMs),
 				source.totalFrames - 1,
 				targetFrame
 			);
@@ -160,13 +162,14 @@ export function Flipbook(
 			setFrame(newFrame);
 
 			if (newFrame >= targetFrame) {
-				console.log('Finished animating')
+				console.log("Finished animating");
+				// controlledStep is certainly not `undefined`, because if it were, `animateToTargetStep` would not be scheduled
+				onStepCompleted?.({ step: controlledStep! });
 				return;
 			}
 
-			animationFrameClb.current = window.requestAnimationFrame(
-				animateToTargetStep
-			);
+			animationFrameClb.current =
+				window.requestAnimationFrame(animateToTargetStep);
 		}
 
 		if (animationFrameClb.current) {
@@ -175,7 +178,7 @@ export function Flipbook(
 
 		animationFrameClb.current =
 			window.requestAnimationFrame(animateToTargetStep);
-	}, [controlledStep, source, steps, setFrame]);
+	}, [controlledStep, source, steps, setFrame, onStepCompleted]);
 
 	useEffect(() => {
 		const cache: Promise<void>[] = [];
