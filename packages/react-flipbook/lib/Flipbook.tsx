@@ -89,10 +89,11 @@ export function Flipbook(
 
 			const currentAtlas = source.atlases[currentAtlasIndex];
 			if (!currentAtlas) {
-				return {
-					width: `${source.width}px`,
-					height: `${source.height}px`,
-				};
+				if (!el.current) return;
+
+				el.current.style.width = `${source.width}px`;
+				el.current.style.height = `${source.height}px`;
+				return;
 			}
 
 			const currentFrameInAtlas = currentFrame % source.framesPerAtlas;
