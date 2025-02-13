@@ -45,7 +45,7 @@ export default function flipbookResolverPlugin() {
 						path.resolve(path.join(id, atlas.src))
 					);
 
-					atlas.src = fullPath.replace(config.root, "");
+					atlas.src = config.base + fullPath.replace(config.root, "").substring(1);
 				}
 			}
 
