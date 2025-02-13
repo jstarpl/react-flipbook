@@ -159,10 +159,19 @@ export function Flipbook(
 			return
 		}
 
-		if (targetFrame < transitionStartFrame) {
-			transitionStartFrame = 0;
-			setFrame(0);
-		}
+		// if (targetFrame < transitionStartFrame) {
+		// 	transitionStartFrame = 0;
+		// 	setFrame(0);
+		// }
+		const beginFrame =
+			controlledStep - 1 < 0
+				? 0
+				: controlledStep - 1 > steps.length - 1
+					? source.totalFrames - 1
+					: steps[controlledStep - 1];
+		setFrame(beginFrame);
+		transitionStartFrame = beginFrame;
+
 
 		function animateToTargetStep(ts: number) {
 			const diff = ts - transitionStart;
