@@ -39,11 +39,11 @@ interface IStepControl {
 type IFrameControlledProps = IBase & IFrameControl;
 type IStepControlledProps = IBase & IStepControl;
 
-export function Flipbook(props: IFrameControlledProps): React.ReactNode;
-export function Flipbook(props: IStepControlledProps): React.ReactNode;
+export function Flipbook(props: IFrameControlledProps): React.JSX.Element;
+export function Flipbook(props: IStepControlledProps): React.JSX.Element;
 export function Flipbook(
 	props: IFrameControlledProps | IStepControlledProps
-): React.ReactNode {
+): React.JSX.Element {
 	const { source: incomingSource, className } = props;
 
 	// source musn't change after mount
