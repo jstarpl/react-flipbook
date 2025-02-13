@@ -106,7 +106,7 @@ export function Flipbook(
 			frame.current = currentFrame;
 
 			if (!el.current) return;
-			el.current.style.backgroundImage = `url(${currentAtlas.src})`;
+			el.current.style.backgroundImage = `url("${currentAtlas.src}")`;
 			el.current.style.backgroundSize = `${currentAtlas.width}px ${currentAtlas.height}px`;
 			el.current.style.backgroundPosition = `${currentX * -1}px ${currentY * -1}px`;
 			el.current.style.width = `${source.width}px`;
