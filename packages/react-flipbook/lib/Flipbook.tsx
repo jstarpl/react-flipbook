@@ -135,6 +135,7 @@ export function Flipbook(
 			return;
 		}
 
+		const oldTargetStep = targetStep.current;
 		targetStep.current = controlledStep;
 
 		const transitionStart = performance.now();
@@ -146,6 +147,17 @@ export function Flipbook(
 				: controlledStep > steps.length - 1
 					? source.totalFrames - 1
 					: steps[controlledStep];
+
+		if (
+			oldTargetStep && (
+				(oldTargetStep > steps.length - 1 && controlledStep < 0) ||
+					(oldTargetStep < 0 && controlledStep > steps.length - 1)
+			)
+		) {
+			// jump between ends without animating
+			setFrame(targetFrame)
+			return
+		}
 
 		if (targetFrame < transitionStartFrame) {
 			transitionStartFrame = 0;
@@ -177,8 +189,12 @@ export function Flipbook(
 			window.cancelAnimationFrame(animationFrameClb.current);
 		}
 
-		animationFrameClb.current =
-			window.requestAnimationFrame(animateToTargetStep);
+		const requestedAnimation = window.requestAnimationFrame(animateToTargetStep);
+		animationFrameClb.current = requestedAnimation
+
+		return () => {
+			window.cancelAnimationFrame(requestedAnimation)
+		}
 	}, [controlledStep, source, steps, setFrame, onStepCompleted]);
 
 	useEffect(() => {
