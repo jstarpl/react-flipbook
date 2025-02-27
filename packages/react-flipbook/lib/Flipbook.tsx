@@ -5,6 +5,7 @@ import React, {
 	useRef,
 	useState,
 } from "react";
+import { isArrayEqual } from "./lib";
 
 interface Atlas {
 	readonly src: string;
@@ -33,7 +34,7 @@ interface IFrameControl {
 interface IStepControl {
 	step: number;
 	steps: number[];
-	onStepCompleted?: (e: {step: number}) => void
+	onStepCompleted?: (e: { step: number }) => void;
 }
 
 type IFrameControlledProps = IBase & IFrameControl;
@@ -46,16 +47,15 @@ export function Flipbook(
 ): React.JSX.Element {
 	const { source: incomingSource, className } = props;
 
-	// source musn't change after mount
-	const [source] = useState(incomingSource);
+	const [source, setSource] = useState(incomingSource);
 
 	const controlledFrame = "frame" in props ? props.frame : undefined;
 	const controlledStep = "step" in props ? props.step : undefined;
 	const incomingSteps = "steps" in props ? props.steps : undefined;
-	const onStepCompleted = "onStepCompleted" in props ? props.onStepCompleted : undefined;
+	const onStepCompleted =
+		"onStepCompleted" in props ? props.onStepCompleted : undefined;
 
-	// steps musn't change after mount
-	const [steps] = useState(incomingSteps);
+	const [steps, setSteps] = useState(incomingSteps);
 
 	function getInitialFrame() {
 		if (controlledFrame) return controlledFrame;
@@ -126,6 +126,18 @@ export function Flipbook(
 	}, [controlledFrame, setFrame]);
 
 	useEffect(() => {
+		setSource(incomingSource);
+	}, [incomingSource]);
+
+	useEffect(() => {
+		setSteps((oldValue) => {
+			if (oldValue === undefined || incomingSteps === undefined) return incomingSteps;
+			if (isArrayEqual(oldValue, incomingSteps)) return oldValue
+			return incomingSteps
+		})
+	}, [incomingSteps])
+
+	useEffect(() => {
 		if (controlledStep === undefined || steps == undefined) return;
 		if (controlledStep === targetStep.current) return;
 		if (typeof controlledStep !== typeof targetStep.current) {
@@ -149,14 +161,13 @@ export function Flipbook(
 					: steps[controlledStep];
 
 		if (
-			oldTargetStep && (
-				(oldTargetStep > steps.length - 1 && controlledStep < 0) ||
-					(oldTargetStep < 0 && controlledStep > steps.length - 1)
-			)
+			oldTargetStep &&
+			((oldTargetStep > steps.length - 1 && controlledStep < 0) ||
+				(oldTargetStep < 0 && controlledStep > steps.length - 1))
 		) {
 			// jump between ends without animating
-			setFrame(targetFrame)
-			return
+			setFrame(targetFrame);
+			return;
 		}
 
 		// if (targetFrame < transitionStartFrame) {
@@ -171,7 +182,6 @@ export function Flipbook(
 					: steps[controlledStep - 1];
 		setFrame(beginFrame);
 		transitionStartFrame = beginFrame;
-
 
 		function animateToTargetStep(ts: number) {
 			const diff = ts - transitionStart;
@@ -198,12 +208,13 @@ export function Flipbook(
 			window.cancelAnimationFrame(animationFrameClb.current);
 		}
 
-		const requestedAnimation = window.requestAnimationFrame(animateToTargetStep);
-		animationFrameClb.current = requestedAnimation
+		const requestedAnimation =
+			window.requestAnimationFrame(animateToTargetStep);
+		animationFrameClb.current = requestedAnimation;
 
 		return () => {
-			window.cancelAnimationFrame(requestedAnimation)
-		}
+			window.cancelAnimationFrame(requestedAnimation);
+		};
 	}, [controlledStep, source, steps, setFrame, onStepCompleted]);
 
 	useEffect(() => {
