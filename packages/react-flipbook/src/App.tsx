@@ -8,7 +8,7 @@ function StepControlledFlipbook(): React.ReactNode {
 
 	return (
 		<>
-			<Flipbook source={test} step={step} steps={[33]}></Flipbook>
+			<Flipbook source={test} step={step} steps={[28]}></Flipbook>
 			<input
 				type="range"
 				value={step}
@@ -22,7 +22,7 @@ function StepControlledFlipbook(): React.ReactNode {
 }
 
 function FrameControlledFlipbook(): React.ReactNode {
-	const [frame, setFrame] = useState(0);
+	const [frame, setFrame] = useState(25);
 
 	return (
 		<>

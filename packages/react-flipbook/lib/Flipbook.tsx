@@ -74,6 +74,9 @@ export function Flipbook(
 	const targetStep = useRef(controlledStep);
 	const animationFrameClb = useRef<number | undefined>(undefined);
 
+	const [allAtlases, setAllAtlases] = useState<HTMLImageElement[]>([]);
+	const lastAtlasIndex = useRef<number | undefined>(undefined);
+
 	const setFrame = useCallback(
 		function setFrame(newFrame: number) {
 			let currentFrame = Math.max(
@@ -89,12 +92,13 @@ export function Flipbook(
 
 			const currentAtlas = source.atlases[currentAtlasIndex];
 			if (!currentAtlas) {
-				if (!el.current) return;
-
-				el.current.style.width = `${source.width}px`;
-				el.current.style.height = `${source.height}px`;
 				return;
 			}
+
+			if (!el.current) return;
+
+			const imageElement = allAtlases[currentAtlasIndex];
+			if (!imageElement) return;
 
 			const currentFrameInAtlas = currentFrame % source.framesPerAtlas;
 
@@ -105,15 +109,24 @@ export function Flipbook(
 
 			frame.current = currentFrame;
 
-			if (!el.current) return;
-			el.current.style.backgroundImage = `url("${currentAtlas.src}")`;
-			el.current.style.backgroundSize = `${currentAtlas.width}px ${currentAtlas.height}px`;
-			el.current.style.backgroundPosition = `${currentX * -1}px ${currentY * -1}px`;
-			el.current.style.width = `${source.width}px`;
-			el.current.style.height = `${source.height}px`;
+			if (
+				lastAtlasIndex.current !== undefined &&
+				currentAtlasIndex !== lastAtlasIndex.current
+			) {
+				const previousImageElement = allAtlases[lastAtlasIndex.current];
+				if (previousImageElement) {
+					previousImageElement.style.left = `${source.width + 10}px`;
+					previousImageElement.style.top = `${source.height + 10}px`;
+				}
+			}
+
+			imageElement.style.left = `${currentX * -1}px`;
+			imageElement.style.top = `${currentY * -1}px`;
 			el.current.dataset["flipbookFrame"] = String(currentFrame);
+
+			lastAtlasIndex.current = currentAtlasIndex;
 		},
-		[source]
+		[source, allAtlases]
 	);
 
 	useLayoutEffect(() => {
@@ -131,11 +144,12 @@ export function Flipbook(
 
 	useEffect(() => {
 		setSteps((oldValue) => {
-			if (oldValue === undefined || incomingSteps === undefined) return incomingSteps;
-			if (isArrayEqual(oldValue, incomingSteps)) return oldValue
-			return incomingSteps
-		})
-	}, [incomingSteps])
+			if (oldValue === undefined || incomingSteps === undefined)
+				return incomingSteps;
+			if (isArrayEqual(oldValue, incomingSteps)) return oldValue;
+			return incomingSteps;
+		});
+	}, [incomingSteps]);
 
 	useEffect(() => {
 		if (controlledStep === undefined || steps == undefined) return;
@@ -194,7 +208,6 @@ export function Flipbook(
 			setFrame(newFrame);
 
 			if (newFrame >= targetFrame) {
-				console.log("Finished animating");
 				// controlledStep is certainly not `undefined`, because if it were, `animateToTargetStep` would not be scheduled
 				onStepCompleted?.({ step: controlledStep! });
 				return;
@@ -217,26 +230,56 @@ export function Flipbook(
 		};
 	}, [controlledStep, source, steps, setFrame, onStepCompleted]);
 
-	useEffect(() => {
-		const cache: Promise<void>[] = [];
+	useLayoutEffect(() => {
+		if (!el.current) return;
 
-		for (const atlas of source.atlases) {
-			const image = new Image();
+		const allImages: HTMLImageElement[] = source.atlases.map((atlas, index) => {
+			const image = new Image(atlas.width, atlas.height);
+			image.dataset["flipbookAtlas"] = String(index);
+			image.decoding = "sync";
 			image.src = atlas.src;
-
-			cache.push(image.decode());
-		}
-
-		Promise.allSettled(cache).then((results) => {
-			const rejected = results.filter((result) => result.status === "rejected");
-			if (rejected.length === 0) return;
-
-			console.error(
-				`Errors while loading assets: ` +
-					rejected.map((result) => result.reason).join(", ")
-			);
+			image.width = atlas.width;
+			image.style.position = "absolute";
+			image.style.left = `0px`;
+			image.style.top = `0px`;
+			return image;
 		});
+		el.current.replaceChildren(...allImages);
+		setAllAtlases(allImages);
 	}, [source]);
 
-	return <div ref={el} data-flipbook className={className}></div>;
+	const [containerStyle, setContainerStyle] = useState<React.CSSProperties>({
+		width: `${source.width}px`,
+		height: `${source.height}px`,
+		contain: `strict`,
+		overflow: "hidden",
+	});
+
+	useEffect(() => {
+		setContainerStyle((style) => ({
+			...style,
+			width: `${source.width}px`,
+			height: `${source.height}px`,
+		}));
+	}, [source]);
+
+	useLayoutEffect(() => {
+		if (!el.current) return;
+
+		const style = el.current.computedStyleMap();
+		if (style.get("position") === "absolute") return;
+		setContainerStyle((style) => ({
+			...style,
+			position: "relative",
+		}));
+	}, []);
+
+	return (
+		<div
+			ref={el}
+			data-flipbook
+			className={className}
+			style={containerStyle}
+		></div>
+	);
 }
