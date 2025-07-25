@@ -267,7 +267,7 @@ export function Flipbook(
 		if (!el.current) return;
 
 		const style = el.current.computedStyleMap();
-		if (style.get("position") === "absolute") return;
+		if (style.get("position")?.toString() === "absolute") return;
 		setContainerStyle((style) => ({
 			...style,
 			position: "relative",

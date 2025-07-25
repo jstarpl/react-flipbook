@@ -8,7 +8,7 @@ function StepControlledFlipbook(): React.ReactNode {
 
 	return (
 		<>
-			<Flipbook source={test} step={step} steps={[28]}></Flipbook>
+			<Flipbook source={test} step={step} steps={[28]} className="absolute_test"></Flipbook>
 			<input
 				type="range"
 				value={step}
