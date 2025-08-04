@@ -4,6 +4,7 @@ import util from 'node:util'
 import fs from 'node:fs/promises'
 
 const MAX_PNG_SIZE = 23150
+const INT_MAX = 2147483647
 
 const exec = util.promisify(cp.exec)
 const spawn = util.promisify(cp.spawn)
@@ -63,8 +64,26 @@ export async function generateAtlas(resolvedPath, atlasInfo, targetPath) {
 }
 
 export function getMaxMatrixSize(fileInfo) {
-    const fitsInWidth = Math.floor(MAX_PNG_SIZE / fileInfo.width)
-    const fitsInHeight = Math.floor(MAX_PNG_SIZE / fileInfo.height)
+    let valid = false
+    let fitsInWidth = 0, fitsInHeight = 0
+
+    fitsInWidth = Math.floor(MAX_PNG_SIZE / fileInfo.width)
+    fitsInHeight = Math.floor(MAX_PNG_SIZE / fileInfo.height)
+    
+    while (!valid) {
+        const totalWidth = ((fileInfo.width * fitsInWidth * 8) + 1024) * (fileInfo.height * fitsInHeight + 128)
+        if (totalWidth > INT_MAX) {
+            if (fitsInWidth > 1) {
+                fitsInWidth--
+            } else if (fitsInHeight > 1) {
+                fitsInHeight--
+            } else {
+                throw new Error(`Can't fit image of size ${fileInfo.width}x${fileInfo.height} into an atlas, size is too big`)
+            }
+        } else {
+            valid = true
+        }
+    }
 
     return {
         x: fitsInWidth,
