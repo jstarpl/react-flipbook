@@ -49,8 +49,6 @@ export function Flipbook(
 
 	const [source, setSource] = useState(incomingSource);
 
-	const [sourceReady, setSourceReady] = useState(false);
-
 	const controlledFrame = "frame" in props ? props.frame : undefined;
 	const controlledStep = "step" in props ? props.step : undefined;
 	const incomingSteps = "steps" in props ? props.steps : undefined;
@@ -71,13 +69,13 @@ export function Flipbook(
 
 	// const [frame, setFrame] = useState(getInitialFrame());
 	const frame = useRef(getInitialFrame());
-	const el = useRef<HTMLCanvasElement>(null);
-	const ctx = useRef<CanvasRenderingContext2D | null>(null);
+	const el = useRef<HTMLDivElement>(null);
 
 	const targetStep = useRef(controlledStep);
 	const animationFrameClb = useRef<number | undefined>(undefined);
 
 	const [allAtlases, setAllAtlases] = useState<HTMLImageElement[]>([]);
+	const lastAtlasIndex = useRef<number | undefined>(undefined);
 
 	const setFrame = useCallback(
 		function setFrame(newFrame: number) {
@@ -97,9 +95,7 @@ export function Flipbook(
 				return;
 			}
 
-			if (!ctx.current || !el.current) return;
-
-			const canvasCtx = ctx.current;
+			if (!el.current) return;
 
 			const imageElement = allAtlases[currentAtlasIndex];
 			if (!imageElement) return;
@@ -113,24 +109,24 @@ export function Flipbook(
 
 			frame.current = currentFrame;
 
-			if (!sourceReady) return;
+			if (
+				lastAtlasIndex.current !== undefined &&
+				currentAtlasIndex !== lastAtlasIndex.current
+			) {
+				const previousImageElement = allAtlases[lastAtlasIndex.current];
+				if (previousImageElement) {
+					previousImageElement.style.left = `${source.width + 10}px`;
+					previousImageElement.style.top = `${source.height + 10}px`;
+				}
+			}
 
+			imageElement.style.left = `${currentX * -1}px`;
+			imageElement.style.top = `${currentY * -1}px`;
 			el.current.dataset["flipbookFrame"] = String(currentFrame);
 
-			canvasCtx.clearRect(0, 0, source.width, source.height)
-			canvasCtx.drawImage(
-				imageElement,
-				currentX,
-				currentY,
-				source.width,
-				source.height,
-				0,
-				0,
-				source.width,
-				source.height
-			);
+			lastAtlasIndex.current = currentAtlasIndex;
 		},
-		[source, allAtlases, sourceReady]
+		[source, allAtlases]
 	);
 
 	useLayoutEffect(() => {
@@ -237,66 +233,53 @@ export function Flipbook(
 	useLayoutEffect(() => {
 		if (!el.current) return;
 
-		setSourceReady(false);
-
-		const allPromises: Promise<void>[] = []
-
-		const allImages: HTMLImageElement[] = source.atlases.map((atlas) => {
-			const image = new Image();
+		const allImages: HTMLImageElement[] = source.atlases.map((atlas, index) => {
+			const image = new Image(atlas.width, atlas.height);
+			image.dataset["flipbookAtlas"] = String(index);
+			image.decoding = "sync";
 			image.src = atlas.src;
-			allPromises.push(new Promise((resolve, reject) => {
-				image.onerror = (e) => {
-					reject(new Error(`Could not load ${atlas.src}: ${e}`))
-				};
-				image.onload = () => {
-					resolve()
-				};
-			}))
+			image.width = atlas.width;
+			image.style.position = "absolute";
+			image.style.left = `0px`;
+			image.style.top = `0px`;
 			return image;
 		});
+		el.current.replaceChildren(...allImages);
+		setAllAtlases(allImages);
+	}, [source]);
 
-		const abort = new AbortController()
-		Promise.all(allPromises).then(() => {
-			if (abort.signal.aborted) return;
-			setAllAtlases(allImages);
-			setSourceReady(true);
-		});
+	const [containerStyle, setContainerStyle] = useState<React.CSSProperties>({
+		width: `${source.width}px`,
+		height: `${source.height}px`,
+		contain: `strict`,
+		overflow: "hidden",
+	});
 
-		return () => {
-			abort.abort()
-		}
+	useEffect(() => {
+		setContainerStyle((style) => ({
+			...style,
+			width: `${source.width}px`,
+			height: `${source.height}px`,
+		}));
 	}, [source]);
 
 	useLayoutEffect(() => {
-		if (!el.current) {
-			ctx.current = null;
-			return;	
-		}
+		if (!el.current) return;
 
-		const canvasCtx = el.current.getContext('2d')
-
-		if (!canvasCtx) {
-			ctx.current = null;
-			console.error('Could not create a 2D rendering context');
-			return;
-		}
-
-		canvasCtx.imageSmoothingEnabled = false;
-		canvasCtx.globalCompositeOperation = 'copy';
-		ctx.current = canvasCtx;
-
-		return () => {
-			ctx.current = null
-		}
-	}, [])
+		const style = el.current.computedStyleMap();
+		if (style.get("position")?.toString() === "absolute") return;
+		setContainerStyle((style) => ({
+			...style,
+			position: "relative",
+		}));
+	}, []);
 
 	return (
-		<canvas
+		<div
 			ref={el}
 			data-flipbook
 			className={className}
-			width={source.width}
-			height={source.height}
-		></canvas>
+			style={containerStyle}
+		></div>
 	);
 }
