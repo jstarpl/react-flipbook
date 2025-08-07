@@ -117,6 +117,7 @@ export function Flipbook(
 
 			el.current.dataset["flipbookFrame"] = String(currentFrame);
 
+			canvasCtx.clearRect(0, 0, source.width, source.height)
 			canvasCtx.drawImage(
 				imageElement,
 				currentX,
