@@ -79,6 +79,13 @@ export function Flipbook(
 
 	const [allAtlases, setAllAtlases] = useState<HTMLImageElement[]>([]);
 
+	const cancelPendingAnimationFrame = useCallback(() => {
+		if (animationFrameClb.current !== undefined) {
+			window.cancelAnimationFrame(animationFrameClb.current);
+			animationFrameClb.current = undefined;
+		}
+	}, []);
+
 	const setFrame = useCallback(
 		function setFrame(newFrame: number) {
 			let currentFrame = Math.max(
@@ -115,9 +122,7 @@ export function Flipbook(
 
 			if (!sourceReady) return;
 
-			el.current.dataset["flipbookFrame"] = String(currentFrame);
-
-			canvasCtx.clearRect(0, 0, source.width, source.height)
+			canvasCtx.clearRect(0, 0, source.width, source.height);
 			canvasCtx.drawImage(
 				imageElement,
 				currentX,
@@ -135,12 +140,28 @@ export function Flipbook(
 
 	useLayoutEffect(() => {
 		if (controlledFrame === undefined) {
-			setFrame(0);
 			return;
 		}
 
-		setFrame(controlledFrame);
-	}, [controlledFrame, setFrame]);
+		const targetFrame = controlledFrame;
+
+		function spinOnFrame() {
+			setFrame(targetFrame);
+			animationFrameClb.current = window.requestAnimationFrame(spinOnFrame);
+
+			return () => {
+				if (animationFrameClb.current) {
+					cancelPendingAnimationFrame();
+				}
+			};
+		}
+
+		if (animationFrameClb.current) {
+			cancelPendingAnimationFrame();
+		}
+
+		return spinOnFrame();
+	}, [controlledFrame, setFrame, cancelPendingAnimationFrame]);
 
 	useEffect(() => {
 		setSource(incomingSource);
@@ -157,7 +178,6 @@ export function Flipbook(
 
 	useEffect(() => {
 		if (controlledStep === undefined || steps == undefined) return;
-		if (controlledStep === targetStep.current) return;
 		if (typeof controlledStep !== typeof targetStep.current) {
 			console.error(
 				`Changing from step-controlled to frame-controlled after mount is not supported.`
@@ -178,14 +198,24 @@ export function Flipbook(
 					? source.totalFrames - 1
 					: steps[controlledStep];
 
+		function spinOnFrame() {
+			setFrame(targetFrame);
+			animationFrameClb.current = window.requestAnimationFrame(spinOnFrame);
+
+			return () => {
+				cancelPendingAnimationFrame();
+			};
+		}
+
 		if (
 			oldTargetStep &&
 			((oldTargetStep > steps.length - 1 && controlledStep < 0) ||
 				(oldTargetStep < 0 && controlledStep > steps.length - 1))
 		) {
+			cancelPendingAnimationFrame();
+
 			// jump between ends without animating
-			setFrame(targetFrame);
-			return;
+			return spinOnFrame();
 		}
 
 		// if (targetFrame < transitionStartFrame) {
@@ -201,94 +231,111 @@ export function Flipbook(
 		setFrame(beginFrame);
 		transitionStartFrame = beginFrame;
 
+		let onStepCompletedFired = false;
+
 		function animateToTargetStep(ts: number) {
 			const diff = ts - transitionStart;
-			const newFrame = Math.min(
-				transitionStartFrame + Math.floor(diff / source.frameDurationMs),
-				source.totalFrames - 1,
-				targetFrame
+			const newFrame = Math.max(
+				0,
+				Math.min(
+					transitionStartFrame + Math.floor(diff / source.frameDurationMs),
+					source.totalFrames - 1,
+					targetFrame
+				)
 			);
 
 			setFrame(newFrame);
 
-			if (newFrame >= targetFrame) {
+			if (newFrame >= targetFrame && !onStepCompletedFired) {
 				// controlledStep is certainly not `undefined`, because if it were, `animateToTargetStep` would not be scheduled
 				onStepCompleted?.({ step: controlledStep! });
-				return;
+				onStepCompletedFired = true;
 			}
 
 			animationFrameClb.current =
 				window.requestAnimationFrame(animateToTargetStep);
 		}
 
-		if (animationFrameClb.current) {
-			window.cancelAnimationFrame(animationFrameClb.current);
-		}
+		cancelPendingAnimationFrame();
 
 		const requestedAnimation =
 			window.requestAnimationFrame(animateToTargetStep);
 		animationFrameClb.current = requestedAnimation;
 
 		return () => {
-			window.cancelAnimationFrame(requestedAnimation);
+			cancelPendingAnimationFrame();
 		};
-	}, [controlledStep, source, steps, setFrame, onStepCompleted]);
+	}, [
+		controlledStep,
+		source,
+		steps,
+		setFrame,
+		onStepCompleted,
+		cancelPendingAnimationFrame,
+	]);
 
 	useLayoutEffect(() => {
 		if (!el.current) return;
 
 		setSourceReady(false);
 
-		const allPromises: Promise<void>[] = []
+		const allPromises: Promise<void>[] = [];
 
 		const allImages: HTMLImageElement[] = source.atlases.map((atlas) => {
-			const image = new Image();
+			const image = document.createElement("img");
 			image.src = atlas.src;
-			allPromises.push(new Promise((resolve, reject) => {
-				image.onerror = (e) => {
-					reject(new Error(`Could not load ${atlas.src}: ${e}`))
-				};
-				image.onload = () => {
-					resolve()
-				};
-			}))
+			image.fetchPriority = "high";
+			allPromises.push(
+				new Promise((resolve, reject) => {
+					image.onerror = (e) => {
+						reject(new Error(`Could not load ${atlas.src}: ${e}`));
+					};
+					image.onload = () => {
+						resolve();
+					};
+				})
+			);
 			return image;
 		});
 
-		const abort = new AbortController()
-		Promise.all(allPromises).then(() => {
-			if (abort.signal.aborted) return;
-			setAllAtlases(allImages);
-			setSourceReady(true);
-		});
+		const abort = new AbortController();
+		Promise.all(allPromises)
+			.then(() => {
+				if (abort.signal.aborted) return;
+				setAllAtlases(allImages);
+				setSourceReady(true);
+			})
+			.catch((e) => {
+				console.error("Failed to load all sources: ", e);
+			});
 
 		return () => {
-			abort.abort()
-		}
+			abort.abort();
+		};
 	}, [source]);
 
 	useLayoutEffect(() => {
 		if (!el.current) {
 			ctx.current = null;
-			return;	
+			return;
 		}
 
-		const canvasCtx = el.current.getContext('2d')
+		const canvasCtx = el.current.getContext("2d");
 
 		if (!canvasCtx) {
 			ctx.current = null;
-			console.error('Could not create a 2D rendering context');
+			console.error("Could not create a 2D rendering context");
 			return;
 		}
 
 		canvasCtx.imageSmoothingEnabled = false;
-		canvasCtx.globalCompositeOperation = 'copy';
+		canvasCtx.globalCompositeOperation = "copy";
 		ctx.current = canvasCtx;
 
 		return () => {
-			ctx.current = null
-		}
-	}, [])
+			ctx.current = null;
+		};
+	}, []);
 
 	return (
 		<canvas
