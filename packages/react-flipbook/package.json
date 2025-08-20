@@ -1,6 +1,6 @@
 {
   "name": "@jstarpl/react-flipbook",
-  "version": "0.1.0-canvas.1",
+  "version": "0.1.0-canvas.2",
   "type": "module",
   "main": "./dist/react-flipbook.js",
   "types": "./dist/main.d.ts",
