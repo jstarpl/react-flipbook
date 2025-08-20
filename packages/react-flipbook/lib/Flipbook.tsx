@@ -59,18 +59,18 @@ export function Flipbook(
 
 	const [steps, setSteps] = useState(incomingSteps);
 
-	function getInitialFrame() {
-		if (controlledFrame) return controlledFrame;
-		if (controlledStep && steps) {
-			if (controlledStep < 0) return 0;
-			if (controlledStep >= steps.length) return source.totalFrames - 1;
-			return steps[controlledStep] || 0;
-		}
-		return 0;
-	}
+	// function getInitialFrame() {
+	// 	if (controlledFrame) return controlledFrame;
+	// 	if (controlledStep && steps) {
+	// 		if (controlledStep < 0) return 0;
+	// 		if (controlledStep >= steps.length) return source.totalFrames - 1;
+	// 		return steps[controlledStep] || 0;
+	// 	}
+	// 	return 0;
+	// }
 
 	// const [frame, setFrame] = useState(getInitialFrame());
-	const frame = useRef(getInitialFrame());
+	const frame = useRef(-1);
 	const el = useRef<HTMLCanvasElement>(null);
 	const ctx = useRef<CanvasRenderingContext2D | null>(null);
 
@@ -118,9 +118,9 @@ export function Flipbook(
 			const currentY =
 				Math.floor(currentVirtualX / currentAtlas.width) * source.height;
 
-			frame.current = currentFrame;
-
 			if (!sourceReady) return;
+
+			frame.current = currentFrame;
 
 			canvasCtx.clearRect(0, 0, source.width, source.height);
 			canvasCtx.drawImage(
@@ -207,8 +207,15 @@ export function Flipbook(
 			};
 		}
 
+		if (oldTargetStep === undefined) {
+			cancelPendingAnimationFrame();
+			
+
+			return spinOnFrame();
+		}
+
 		if (
-			oldTargetStep &&
+			oldTargetStep !== undefined &&
 			((oldTargetStep > steps.length - 1 && controlledStep < 0) ||
 				(oldTargetStep < 0 && controlledStep > steps.length - 1))
 		) {
@@ -329,7 +336,6 @@ export function Flipbook(
 		}
 
 		canvasCtx.imageSmoothingEnabled = false;
-		canvasCtx.globalCompositeOperation = "copy";
 		ctx.current = canvasCtx;
 
 		return () => {
