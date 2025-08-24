@@ -21,6 +21,17 @@ function StepControlledFlipbook(): React.ReactNode {
 	);
 }
 
+function ShowHideFlipbook(): React.ReactNode {
+	const [visible, setVisible] = useState(false);
+
+	return (
+		<>
+			<button onClick={() => setVisible((visible) => !visible)}>Show/Hide</button>
+			{visible ? <Flipbook source={test} step={1} steps={[28]}></Flipbook> : null}
+		</>
+	);
+}
+
 function FrameControlledFlipbook(): React.ReactNode {
 	const [frame, setFrame] = useState(25);
 
@@ -43,14 +54,18 @@ export default function App(): React.ReactNode {
 
 	return (
 		<>
-			<section>
-				<h2>Frame-controlled</h2>
+			<details>
+				<summary>Show-hide</summary>
+				<ShowHideFlipbook />
+			</details>
+			<details>
+				<summary>Frame-controlled</summary>
 				<FrameControlledFlipbook />
-			</section>
-			<section>
-				<h2>Step-controlled</h2>
+			</details>
+			<details>
+				<summary>Step-controlled</summary>
 				<StepControlledFlipbook />
-			</section>
+			</details>
 		</>
 	);
 }

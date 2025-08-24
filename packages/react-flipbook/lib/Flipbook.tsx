@@ -40,6 +40,8 @@ interface IStepControl {
 type IFrameControlledProps = IBase & IFrameControl;
 type IStepControlledProps = IBase & IStepControl;
 
+const debug: ((...args: unknown[]) => void) = () => {}
+
 export function Flipbook(props: IFrameControlledProps): React.JSX.Element;
 export function Flipbook(props: IStepControlledProps): React.JSX.Element;
 export function Flipbook(
@@ -188,6 +190,8 @@ export function Flipbook(
 		const oldTargetStep = targetStep.current;
 		targetStep.current = controlledStep;
 
+		debug(oldTargetStep, controlledStep)
+
 		const transitionStart = performance.now();
 		let transitionStartFrame = frame.current;
 
@@ -210,7 +214,14 @@ export function Flipbook(
 		if (oldTargetStep === undefined) {
 			cancelPendingAnimationFrame();
 			
+			debug("spinOnFrame: no oldTargetStep");
+			return spinOnFrame();
+		}
 
+		if (oldTargetStep === controlledStep) {
+			cancelPendingAnimationFrame();
+
+			debug("spinOnFrame: oldTargetStep === controlledStep");
 			return spinOnFrame();
 		}
 
@@ -222,6 +233,7 @@ export function Flipbook(
 			cancelPendingAnimationFrame();
 
 			// jump between ends without animating
+			debug("spinOnFrame: jump between ends");
 			return spinOnFrame();
 		}
 
@@ -264,6 +276,8 @@ export function Flipbook(
 		}
 
 		cancelPendingAnimationFrame();
+
+		debug(`animating: from ${beginFrame} to ${targetFrame}`);
 
 		const requestedAnimation =
 			window.requestAnimationFrame(animateToTargetStep);
