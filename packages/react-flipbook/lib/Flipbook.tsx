@@ -90,6 +90,8 @@ export function Flipbook(
 
 	const setFrame = useCallback(
 		function setFrame(newFrame: number) {
+			if (!sourceReady) return;
+
 			let currentFrame = Math.max(
 				0,
 				Math.min(newFrame, source.totalFrames - 1)
@@ -120,8 +122,6 @@ export function Flipbook(
 			const currentY =
 				Math.floor(currentVirtualX / currentAtlas.width) * source.height;
 
-			if (!sourceReady) return;
-
 			frame.current = currentFrame;
 
 			canvasCtx.clearRect(0, 0, source.width, source.height);
@@ -140,6 +140,12 @@ export function Flipbook(
 		[source, allAtlases, sourceReady]
 	);
 
+	const setFrameClbRef = useRef<(frame: number) => void>(setFrame);
+
+	useEffect(() => {
+		setFrameClbRef.current = setFrame
+	}, [setFrame])
+
 	useLayoutEffect(() => {
 		if (controlledFrame === undefined) {
 			return;
@@ -148,7 +154,9 @@ export function Flipbook(
 		const targetFrame = controlledFrame;
 
 		function spinOnFrame() {
-			setFrame(targetFrame);
+			// even if we are on a given frame, we need to keep repainting it so that the texture is not expunged from GPU
+			// by the browser
+			setFrameClbRef.current(targetFrame);
 			animationFrameClb.current = window.requestAnimationFrame(spinOnFrame);
 
 			return () => {
@@ -163,7 +171,7 @@ export function Flipbook(
 		}
 
 		return spinOnFrame();
-	}, [controlledFrame, setFrame, cancelPendingAnimationFrame]);
+	}, [controlledFrame, cancelPendingAnimationFrame]);
 
 	useEffect(() => {
 		setSource(incomingSource);
@@ -202,8 +210,10 @@ export function Flipbook(
 					? source.totalFrames - 1
 					: steps[controlledStep];
 
+		// even if we are on a given frame, we need to keep repainting it so that the texture is not expunged from GPU
+		// by the browser
 		function spinOnFrame() {
-			setFrame(targetFrame);
+			setFrameClbRef.current(targetFrame);
 			animationFrameClb.current = window.requestAnimationFrame(spinOnFrame);
 
 			return () => {
@@ -247,7 +257,7 @@ export function Flipbook(
 				: controlledStep - 1 > steps.length - 1
 					? source.totalFrames - 1
 					: steps[controlledStep - 1];
-		setFrame(beginFrame);
+		setFrameClbRef.current(beginFrame);
 		transitionStartFrame = beginFrame;
 
 		let onStepCompletedFired = false;
@@ -263,7 +273,7 @@ export function Flipbook(
 				)
 			);
 
-			setFrame(newFrame);
+			setFrameClbRef.current(newFrame);
 
 			if (newFrame >= targetFrame && !onStepCompletedFired) {
 				// controlledStep is certainly not `undefined`, because if it were, `animateToTargetStep` would not be scheduled
@@ -290,7 +300,6 @@ export function Flipbook(
 		controlledStep,
 		source,
 		steps,
-		setFrame,
 		onStepCompleted,
 		cancelPendingAnimationFrame,
 	]);
@@ -355,7 +364,7 @@ export function Flipbook(
 		return () => {
 			ctx.current = null;
 		};
-	}, []);
+	}, [source.width, source.height]);
 
 	return (
 		<canvas
