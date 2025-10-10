@@ -41,7 +41,8 @@ type IFrameControlledProps = IBase & IFrameControl;
 type IStepControlledProps = IBase & IStepControl;
 
 const debug: ((...args: unknown[]) => void) = () => {};
-const KEEP_ALIVE_INTERVAL_MS = 200;
+// Keep textures warm with a gentle refresh roughly every 160ms (~4-8 FPS depending on framerate)
+const KEEP_ALIVE_INTERVAL_MS = 160;
 
 export function Flipbook(props: IFrameControlledProps): React.JSX.Element;
 export function Flipbook(props: IStepControlledProps): React.JSX.Element;
@@ -80,7 +81,9 @@ export function Flipbook(
 
 	const targetStep = useRef(controlledStep);
 	const animationFrameClb = useRef<number | undefined>(undefined);
-	const keepAliveInterval = useRef<number | undefined>(undefined);
+	const keepAliveTimeout = useRef<number | undefined>(undefined);
+	const keepAliveRaf = useRef<number | undefined>(undefined);
+	const keepAliveActive = useRef(false);
 
 	const [allAtlases, setAllAtlases] = useState<HTMLImageElement[]>([]);
 
@@ -154,22 +157,47 @@ export function Flipbook(
 	}, [sourceReady]);
 
 	const stopKeepAlive = useCallback(() => {
-		if (keepAliveInterval.current !== undefined) {
-			window.clearInterval(keepAliveInterval.current);
-			keepAliveInterval.current = undefined;
+		keepAliveActive.current = false;
+
+		if (keepAliveTimeout.current !== undefined) {
+			window.clearTimeout(keepAliveTimeout.current);
+			keepAliveTimeout.current = undefined;
+		}
+
+		if (keepAliveRaf.current !== undefined) {
+			window.cancelAnimationFrame(keepAliveRaf.current);
+			keepAliveRaf.current = undefined;
 		}
 	}, []);
 
-	const startKeepAlive = useCallback(() => {
-		if (keepAliveInterval.current !== undefined) return;
+	const scheduleKeepAlive = useCallback(() => {
+		if (!keepAliveActive.current) return;
 
-		keepAliveInterval.current = window.setInterval(() => {
-			if (!sourceReadyRef.current) return;
-			if (frame.current < 0) return;
+		keepAliveTimeout.current = window.setTimeout(() => {
+			keepAliveTimeout.current = undefined;
 
-			latestSetFrameRef.current(frame.current);
+			keepAliveRaf.current = window.requestAnimationFrame(() => {
+				keepAliveRaf.current = undefined;
+
+				if (!keepAliveActive.current) return;
+				if (!sourceReadyRef.current) {
+					scheduleKeepAlive();
+					return;
+				}
+				if (frame.current >= 0) {
+					latestSetFrameRef.current(frame.current);
+				}
+				scheduleKeepAlive();
+			});
 		}, KEEP_ALIVE_INTERVAL_MS);
 	}, []);
+
+	const startKeepAlive = useCallback(() => {
+		if (keepAliveActive.current) return;
+
+		keepAliveActive.current = true;
+		scheduleKeepAlive();
+	}, [scheduleKeepAlive]);
 
 	useLayoutEffect(() => {
 		if (controlledFrame === undefined) {
