@@ -40,7 +40,8 @@ interface IStepControl {
 type IFrameControlledProps = IBase & IFrameControl;
 type IStepControlledProps = IBase & IStepControl;
 
-const debug: ((...args: unknown[]) => void) = () => {}
+const debug: ((...args: unknown[]) => void) = () => {};
+const KEEP_ALIVE_INTERVAL_MS = 200;
 
 export function Flipbook(props: IFrameControlledProps): React.JSX.Element;
 export function Flipbook(props: IStepControlledProps): React.JSX.Element;
@@ -52,6 +53,7 @@ export function Flipbook(
 	const [source, setSource] = useState(incomingSource);
 
 	const [sourceReady, setSourceReady] = useState(false);
+	const sourceReadyRef = useRef(sourceReady);
 
 	const controlledFrame = "frame" in props ? props.frame : undefined;
 	const controlledStep = "step" in props ? props.step : undefined;
@@ -78,6 +80,7 @@ export function Flipbook(
 
 	const targetStep = useRef(controlledStep);
 	const animationFrameClb = useRef<number | undefined>(undefined);
+	const keepAliveInterval = useRef<number | undefined>(undefined);
 
 	const [allAtlases, setAllAtlases] = useState<HTMLImageElement[]>([]);
 
@@ -106,6 +109,8 @@ export function Flipbook(
 				return;
 			}
 
+			frame.current = currentFrame;
+
 			if (!ctx.current || !el.current) return;
 
 			const canvasCtx = ctx.current;
@@ -121,8 +126,6 @@ export function Flipbook(
 				Math.floor(currentVirtualX / currentAtlas.width) * source.height;
 
 			if (!sourceReady) return;
-
-			frame.current = currentFrame;
 
 			canvasCtx.clearRect(0, 0, source.width, source.height);
 			canvasCtx.drawImage(
@@ -140,30 +143,56 @@ export function Flipbook(
 		[source, allAtlases, sourceReady]
 	);
 
+	const latestSetFrameRef = useRef<(value: number) => void>(setFrame);
+
+	useEffect(() => {
+		latestSetFrameRef.current = setFrame;
+	}, [setFrame]);
+
+	useEffect(() => {
+		sourceReadyRef.current = sourceReady;
+	}, [sourceReady]);
+
+	const stopKeepAlive = useCallback(() => {
+		if (keepAliveInterval.current !== undefined) {
+			window.clearInterval(keepAliveInterval.current);
+			keepAliveInterval.current = undefined;
+		}
+	}, []);
+
+	const startKeepAlive = useCallback(() => {
+		if (keepAliveInterval.current !== undefined) return;
+
+		keepAliveInterval.current = window.setInterval(() => {
+			if (!sourceReadyRef.current) return;
+			if (frame.current < 0) return;
+
+			latestSetFrameRef.current(frame.current);
+		}, KEEP_ALIVE_INTERVAL_MS);
+	}, []);
+
 	useLayoutEffect(() => {
 		if (controlledFrame === undefined) {
 			return;
 		}
 
+		stopKeepAlive();
+		cancelPendingAnimationFrame();
+
 		const targetFrame = controlledFrame;
+		setFrame(targetFrame);
+		startKeepAlive();
 
-		function spinOnFrame() {
-			setFrame(targetFrame);
-			animationFrameClb.current = window.requestAnimationFrame(spinOnFrame);
-
-			return () => {
-				if (animationFrameClb.current) {
-					cancelPendingAnimationFrame();
-				}
-			};
-		}
-
-		if (animationFrameClb.current) {
-			cancelPendingAnimationFrame();
-		}
-
-		return spinOnFrame();
-	}, [controlledFrame, setFrame, cancelPendingAnimationFrame]);
+		return () => {
+			stopKeepAlive();
+		};
+	}, [
+		controlledFrame,
+		setFrame,
+		cancelPendingAnimationFrame,
+		startKeepAlive,
+		stopKeepAlive,
+	]);
 
 	useEffect(() => {
 		setSource(incomingSource);
@@ -190,10 +219,7 @@ export function Flipbook(
 		const oldTargetStep = targetStep.current;
 		targetStep.current = controlledStep;
 
-		debug(oldTargetStep, controlledStep)
-
-		const transitionStart = performance.now();
-		let transitionStartFrame = frame.current;
+		debug(oldTargetStep, controlledStep);
 
 		const targetFrame =
 			controlledStep < 0
@@ -202,27 +228,28 @@ export function Flipbook(
 					? source.totalFrames - 1
 					: steps[controlledStep];
 
-		function spinOnFrame() {
+		const maintainFrame = (logMessage?: string) => {
+			if (logMessage) {
+				debug(logMessage);
+			}
+			cancelPendingAnimationFrame();
+			stopKeepAlive();
 			setFrame(targetFrame);
-			animationFrameClb.current = window.requestAnimationFrame(spinOnFrame);
+			startKeepAlive();
+		};
 
+		if (oldTargetStep === undefined) {
+			maintainFrame("spinOnFrame: no oldTargetStep");
 			return () => {
-				cancelPendingAnimationFrame();
+				stopKeepAlive();
 			};
 		}
 
-		if (oldTargetStep === undefined) {
-			cancelPendingAnimationFrame();
-			
-			debug("spinOnFrame: no oldTargetStep");
-			return spinOnFrame();
-		}
-
 		if (oldTargetStep === controlledStep) {
-			cancelPendingAnimationFrame();
-
-			debug("spinOnFrame: oldTargetStep === controlledStep");
-			return spinOnFrame();
+			maintainFrame("spinOnFrame: oldTargetStep === controlledStep");
+			return () => {
+				stopKeepAlive();
+			};
 		}
 
 		if (
@@ -230,17 +257,17 @@ export function Flipbook(
 			((oldTargetStep > steps.length - 1 && controlledStep < 0) ||
 				(oldTargetStep < 0 && controlledStep > steps.length - 1))
 		) {
-			cancelPendingAnimationFrame();
-
-			// jump between ends without animating
-			debug("spinOnFrame: jump between ends");
-			return spinOnFrame();
+			maintainFrame("spinOnFrame: jump between ends");
+			return () => {
+				stopKeepAlive();
+			};
 		}
 
-		// if (targetFrame < transitionStartFrame) {
-		// 	transitionStartFrame = 0;
-		// 	setFrame(0);
-		// }
+		stopKeepAlive();
+
+		const transitionStart = performance.now();
+		let transitionStartFrame = frame.current;
+
 		const beginFrame =
 			controlledStep - 1 < 0
 				? 0
@@ -265,10 +292,15 @@ export function Flipbook(
 
 			setFrame(newFrame);
 
-			if (newFrame >= targetFrame && !onStepCompletedFired) {
-				// controlledStep is certainly not `undefined`, because if it were, `animateToTargetStep` would not be scheduled
-				onStepCompleted?.({ step: controlledStep! });
-				onStepCompletedFired = true;
+			if (newFrame >= targetFrame) {
+				if (!onStepCompletedFired) {
+					// controlledStep is certainly not `undefined`, because if it were, `animateToTargetStep` would not be scheduled
+					onStepCompleted?.({ step: controlledStep! });
+					onStepCompletedFired = true;
+				}
+				cancelPendingAnimationFrame();
+				startKeepAlive();
+				return;
 			}
 
 			animationFrameClb.current =
@@ -279,12 +311,12 @@ export function Flipbook(
 
 		debug(`animating: from ${beginFrame} to ${targetFrame}`);
 
-		const requestedAnimation =
+		animationFrameClb.current =
 			window.requestAnimationFrame(animateToTargetStep);
-		animationFrameClb.current = requestedAnimation;
 
 		return () => {
 			cancelPendingAnimationFrame();
+			stopKeepAlive();
 		};
 	}, [
 		controlledStep,
@@ -293,7 +325,16 @@ export function Flipbook(
 		setFrame,
 		onStepCompleted,
 		cancelPendingAnimationFrame,
+		startKeepAlive,
+		stopKeepAlive,
 	]);
+
+	useEffect(() => {
+		return () => {
+			stopKeepAlive();
+			cancelPendingAnimationFrame();
+		};
+	}, [stopKeepAlive, cancelPendingAnimationFrame]);
 
 	useLayoutEffect(() => {
 		if (!el.current) return;
