@@ -81,9 +81,9 @@ export function Flipbook(
 
 	const targetStep = useRef(controlledStep);
 	const animationFrameClb = useRef<number | undefined>(undefined);
-	const keepAliveTimeout = useRef<number | undefined>(undefined);
 	const keepAliveRaf = useRef<number | undefined>(undefined);
 	const keepAliveActive = useRef(false);
+	const keepAliveLastTick = useRef(0);
 
 	const [allAtlases, setAllAtlases] = useState<HTMLImageElement[]>([]);
 
@@ -158,11 +158,7 @@ export function Flipbook(
 
 	const stopKeepAlive = useCallback(() => {
 		keepAliveActive.current = false;
-
-		if (keepAliveTimeout.current !== undefined) {
-			window.clearTimeout(keepAliveTimeout.current);
-			keepAliveTimeout.current = undefined;
-		}
+		keepAliveLastTick.current = 0;
 
 		if (keepAliveRaf.current !== undefined) {
 			window.cancelAnimationFrame(keepAliveRaf.current);
@@ -170,34 +166,39 @@ export function Flipbook(
 		}
 	}, []);
 
-	const scheduleKeepAlive = useCallback(() => {
-		if (!keepAliveActive.current) return;
-
-		keepAliveTimeout.current = window.setTimeout(() => {
-			keepAliveTimeout.current = undefined;
-
-			keepAliveRaf.current = window.requestAnimationFrame(() => {
+	const keepAliveTick = useCallback(
+		(time: number) => {
+			if (!keepAliveActive.current) {
 				keepAliveRaf.current = undefined;
+				return;
+			}
 
-				if (!keepAliveActive.current) return;
-				if (!sourceReadyRef.current) {
-					scheduleKeepAlive();
-					return;
-				}
-				if (frame.current >= 0) {
-					latestSetFrameRef.current(frame.current);
-				}
-				scheduleKeepAlive();
-			});
-		}, KEEP_ALIVE_INTERVAL_MS);
-	}, []);
+			keepAliveRaf.current = window.requestAnimationFrame(keepAliveTick);
+
+			if (!sourceReadyRef.current || frame.current < 0) {
+				return;
+			}
+
+			if (
+				keepAliveLastTick.current !== 0 &&
+				time - keepAliveLastTick.current < KEEP_ALIVE_INTERVAL_MS
+			) {
+				return;
+			}
+
+			keepAliveLastTick.current = time;
+			latestSetFrameRef.current(frame.current);
+		},
+		[]
+	);
 
 	const startKeepAlive = useCallback(() => {
 		if (keepAliveActive.current) return;
 
 		keepAliveActive.current = true;
-		scheduleKeepAlive();
-	}, [scheduleKeepAlive]);
+		keepAliveLastTick.current = 0;
+		keepAliveRaf.current = window.requestAnimationFrame(keepAliveTick);
+	}, [keepAliveTick]);
 
 	useLayoutEffect(() => {
 		if (controlledFrame === undefined) {
