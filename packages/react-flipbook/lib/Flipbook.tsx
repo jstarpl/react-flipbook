@@ -79,7 +79,7 @@ export function Flipbook(
 	const targetStep = useRef(controlledStep);
 	const animationFrameClb = useRef<number | undefined>(undefined);
 
-	const [allAtlases, setAllAtlases] = useState<HTMLImageElement[]>([]);
+	const [allAtlases, setAllAtlases] = useState<ImageBitmap[]>([]);
 
 	const cancelPendingAnimationFrame = useCallback(() => {
 		if (animationFrameClb.current !== undefined) {
@@ -153,24 +153,11 @@ export function Flipbook(
 
 		const targetFrame = controlledFrame;
 
-		function spinOnFrame() {
-			// even if we are on a given frame, we need to keep repainting it so that the texture is not expunged from GPU
-			// by the browser
-			setFrameClbRef.current(targetFrame);
-			animationFrameClb.current = window.requestAnimationFrame(spinOnFrame);
-
-			return () => {
-				if (animationFrameClb.current) {
-					cancelPendingAnimationFrame();
-				}
-			};
-		}
-
 		if (animationFrameClb.current) {
 			cancelPendingAnimationFrame();
 		}
 
-		return spinOnFrame();
+		setFrameClbRef.current(targetFrame);
 	}, [controlledFrame, cancelPendingAnimationFrame]);
 
 	useEffect(() => {
@@ -214,11 +201,6 @@ export function Flipbook(
 		// by the browser
 		function spinOnFrame() {
 			setFrameClbRef.current(targetFrame);
-			animationFrameClb.current = window.requestAnimationFrame(spinOnFrame);
-
-			return () => {
-				cancelPendingAnimationFrame();
-			};
 		}
 
 		if (oldTargetStep === undefined) {
@@ -279,10 +261,11 @@ export function Flipbook(
 				// controlledStep is certainly not `undefined`, because if it were, `animateToTargetStep` would not be scheduled
 				onStepCompleted?.({ step: controlledStep! });
 				onStepCompletedFired = true;
+				animationFrameClb.current = undefined;
+			} else {
+				animationFrameClb.current =
+					window.requestAnimationFrame(animateToTargetStep);
 			}
-
-			animationFrameClb.current =
-				window.requestAnimationFrame(animateToTargetStep);
 		}
 
 		cancelPendingAnimationFrame();
@@ -309,30 +292,30 @@ export function Flipbook(
 
 		setSourceReady(false);
 
-		const allPromises: Promise<void>[] = [];
-
-		const allImages: HTMLImageElement[] = source.atlases.map((atlas) => {
+		const allImages: Promise<ImageBitmap>[] = source.atlases.map((atlas) => {
 			const image = document.createElement("img");
 			image.src = atlas.src;
 			image.fetchPriority = "high";
-			allPromises.push(
-				new Promise((resolve, reject) => {
-					image.onerror = (e) => {
-						reject(new Error(`Could not load ${atlas.src}: ${e}`));
-					};
-					image.onload = () => {
-						resolve();
-					};
-				})
-			);
-			return image;
+			return new Promise((resolve, reject) => {
+				image.onerror = (e) => {
+					reject(new Error(`Could not load ${atlas.src}: ${e}`));
+				};
+				image.onload = () => {
+					window
+						.createImageBitmap(image, {
+							premultiplyAlpha: "premultiply",
+						})
+						.then(resolve)
+						.catch(reject);
+				};
+			});
 		});
 
 		const abort = new AbortController();
-		Promise.all(allPromises)
-			.then(() => {
+		Promise.all(allImages)
+			.then((allAtlases) => {
 				if (abort.signal.aborted) return;
-				setAllAtlases(allImages);
+				setAllAtlases(allAtlases);
 				setSourceReady(true);
 			})
 			.catch((e) => {
