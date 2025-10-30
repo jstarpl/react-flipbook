@@ -1,9 +1,10 @@
 import React, {
 	useCallback,
 	useEffect,
+	useImperativeHandle,
 	useLayoutEffect,
 	useRef,
-	useState,
+	useState
 } from "react";
 import { isArrayEqual } from "./lib";
 
@@ -42,10 +43,11 @@ type IStepControlledProps = IBase & IStepControl;
 
 const debug: ((...args: unknown[]) => void) = () => {}
 
-export function Flipbook(props: IFrameControlledProps): React.JSX.Element;
-export function Flipbook(props: IStepControlledProps): React.JSX.Element;
-export function Flipbook(
-	props: IFrameControlledProps | IStepControlledProps
+export const Flipbook = React.forwardRef<{
+	refresh(): void
+}, IFrameControlledProps | IStepControlledProps>(function Flipbook(
+	props,
+	ref
 ): React.JSX.Element {
 	const { source: incomingSource, className } = props;
 
@@ -112,8 +114,8 @@ export function Flipbook(
 
 			const canvasCtx = ctx.current;
 
-			const imageElement = allAtlases[currentAtlasIndex];
-			if (!imageElement) return;
+			const bitmap = allAtlases[currentAtlasIndex];
+			if (!bitmap) return;
 
 			const currentFrameInAtlas = currentFrame % source.framesPerAtlas;
 
@@ -126,7 +128,7 @@ export function Flipbook(
 
 			canvasCtx.clearRect(0, 0, source.width, source.height);
 			canvasCtx.drawImage(
-				imageElement,
+				bitmap,
 				currentX,
 				currentY,
 				source.width,
@@ -145,6 +147,16 @@ export function Flipbook(
 	useEffect(() => {
 		setFrameClbRef.current = setFrame
 	}, [setFrame])
+
+	useImperativeHandle(ref, () => {
+		return {
+			refresh() {
+				if (!setFrameClbRef.current) return
+
+				setFrameClbRef.current(frame.current)
+			}
+		}
+	}, []);
 
 	useLayoutEffect(() => {
 		if (controlledFrame === undefined) {
@@ -358,4 +370,4 @@ export function Flipbook(
 			height={source.height}
 		></canvas>
 	);
-}
+})
