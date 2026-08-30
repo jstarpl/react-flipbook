@@ -63,12 +63,12 @@ export async function generateAtlas(resolvedPath, atlasInfo, targetPath) {
     await ffmpeg
 }
 
-export function getMaxMatrixSize(fileInfo) {
+export function getMaxMatrixSize(fileInfo, maxSize = MAX_PNG_SIZE) {
     let valid = false
     let fitsInWidth = 0, fitsInHeight = 0
 
-    fitsInWidth = Math.floor(MAX_PNG_SIZE / fileInfo.width)
-    fitsInHeight = Math.floor(MAX_PNG_SIZE / fileInfo.height)
+    fitsInWidth = Math.floor(maxSize / fileInfo.width)
+    fitsInHeight = Math.floor(maxSize / fileInfo.height)
     
     while (!valid) {
         const totalWidth = ((fileInfo.width * fitsInWidth * 8) + 1024) * (fileInfo.height * fitsInHeight + 128)

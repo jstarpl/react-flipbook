@@ -14,7 +14,7 @@ import {
 	formatDuration,
 } from "./lib.mjs";
 
-async function processFile(file, index, size) {
+async function processFile(file, index, size, maxSize) {
 	function makeSuffix(suffix) {
 		return `(${index + 1}/${size}): ${suffix}`;
 	}
@@ -33,7 +33,7 @@ async function processFile(file, index, size) {
 
 	const info = await getFileInfo(resolvedPath);
 
-	const maxMatrixSize = getMaxMatrixSize(info);
+	const maxMatrixSize = getMaxMatrixSize(info, maxSize);
 
 	const frameDurationMs = getFrameDurationMs(info);
 	const totalFrames = info.durationMs / frameDurationMs;
@@ -74,7 +74,32 @@ async function processFile(file, index, size) {
 	});
 }
 
-const inputFiles = process.argv.slice(2);
+const flags = [];
+let inputFilesStartIndex = 2;
+for (let i = 2; i < process.argv.length; i++) {
+	const arg = process.argv[i];
+	if (arg.startsWith("-")) {
+		flags.push(arg);
+		inputFilesStartIndex++;
+	}
+}
+
+let maxDimensionSize = 23150;
+
+for (const flag of flags) {
+	if (flag.startsWith("--max-size=")) {
+		const value = flag.substring("--max-size=".length);
+		const parsedValue = parseInt(value, 10);
+		if (!isNaN(parsedValue) && parsedValue > 0) {
+			maxDimensionSize = parsedValue;
+		} else {
+			console.log(`Invalid value for --max-size: ${value}`);
+			process.exit(1);
+		}
+	}
+}
+
+const inputFiles = process.argv.slice(inputFilesStartIndex);
 
 if (inputFiles.length === 0) {
 	console.log("No files provided for encoding");
@@ -87,7 +112,7 @@ const startTime = Date.now();
 
 for (let i = 0; i < inputFiles.length; i++) {
 	const file = inputFiles[i];
-	await processFile(file, i, inputFiles.length);
+	await processFile(file, i, inputFiles.length, maxDimensionSize);
 }
 
 console.log("");
